@@ -1,31 +1,35 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { auth, db } from '../../utils/firebase';
-import { collection, getDocs, addDoc } from 'firebase/firestore';
-import GroupCard from '../../components/Community/GroupCard';
+import { collection, addDoc, query, getDocs } from 'firebase/firestore';
+import { useRouter } from 'next/navigation';
 
 export default function CommunityPage() {
-  const [groups, setGroups] = useState([]);
   const [newGroupName, setNewGroupName] = useState('');
+  const [groups, setGroups] = useState([]);
+  const router = useRouter();
 
   useEffect(() => {
-    const fetchGroups = async () => {
-      if (!auth.currentUser) return;
-      
-      const querySnapshot = await getDocs(collection(db, 'groups'));
+    fetchGroups();
+  }, []);
+
+  const fetchGroups = async () => {
+    try {
+      const q = query(collection(db, 'groups'));
+      const querySnapshot = await getDocs(q);
       const groupsData = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
       setGroups(groupsData);
-    };
-
-    fetchGroups();
-  }, []);
+    } catch (error) {
+      console.error('Error fetching groups:', error);
+    }
+  };
 
   const handleCreateGroup = async (e) => {
     e.preventDefault();
-    if (!newGroupName.trim()) return;
+    if (!newGroupName.trim() || !auth.currentUser) return;
 
     try {
       await addDoc(collection(db, 'groups'), {
@@ -35,17 +39,23 @@ export default function CommunityPage() {
         members: [auth.currentUser.uid]
       });
       setNewGroupName('');
-      // Refresh groups
-      const querySnapshot = await getDocs(collection(db, 'groups'));
-      const groupsData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setGroups(groupsData);
+      fetchGroups();
     } catch (error) {
       console.error('Error creating group:', error);
     }
   };
+
+  const GroupCard = ({ group }) => (
+    <div className="bg-white overflow-hidden shadow rounded-lg">
+      <div className="p-5">
+        <h3 className="text-lg font-medium text-gray-900">{group.name}</h3>
+        <p className="mt-2 text-sm text-gray-600">
+          Created {new Date(group.createdAt).toLocaleDateString()}
+        </p>
+        <button className="mt-4 btn-primary">Join Group</button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="max-w-7xl mx-auto py-8 px-4">
